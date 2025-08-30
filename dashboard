@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Travel Expense Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        .btn-primary {
+            background-color: #4f46e5;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #4338ca;
+        }
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .card {
+            background-color: #ffffff;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            padding: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Login View -->
+    <div id="login-view" class="flex items-center justify-center min-h-screen bg-gray-100">
+        <div class="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
+            <h1 class="text-3xl font-bold text-center text-gray-800">TripSplit Login</h1>
+            <form id="login-form" class="space-y-6">
+                <div>
+                    <label for="email" class="text-sm font-medium text-gray-700">Email (fake)</label>
+                    <input type="email" id="email" value="user@example.com" class="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required>
+                </div>
+                <div>
+                    <label for="password" class="text-sm font-medium text-gray-700">Password</label>
+                    <input type="password" id="password" value="password" class="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required>
+                </div>
+                <div>
+                     <label for="role-select" class="text-sm font-medium text-gray-700">Login as</label>
+                     <select id="role-select" class="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="organizer">Organizer</option>
+                        <option value="member">Member</option>
+                     </select>
+                </div>
+                <button type="submit" class="w-full btn-primary py-2 px-4 rounded-md font-medium">Login</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Application Container -->
+    <div id="app-container" class="hidden">
+        <!-- Top Navigation Bar -->
+        <header class="bg-white shadow-sm">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center h-16">
+                    <div class="flex-shrink-0">
+                        <h1 class="text-2xl font-bold text-gray-800">TripSplit</h1>
+                    </div>
+                    <nav class="flex items-center space-x-4">
+                        <a href="#" id="dashboard-link" class="text-gray-600 hover:text-indigo-600 font-medium">Dashboard</a>
+                        <a href="#" id="members-link" class="hidden text-gray-600 hover:text-indigo-600 font-medium">Members</a>
+                        <button id="logout-btn" class="py-2 px-4 rounded-md text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200">Logout</button>
+                    </nav>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <!-- Organizer View -->
+            <div id="organizer-view" class="hidden">
+                <div class="flex justify-between items-center mb-8">
+                    <h2 class="text-3xl font-bold text-gray-800">Organizer Dashboard</h2>
+                    <button id="create-trip-btn" class="btn-primary py-2 px-4 rounded-md font-medium">Create New Trip</button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="trip-list">
+                    <!-- Trip cards will be dynamically inserted here -->
+                </div>
+            </div>
+
+            <!-- Member View -->
+            <div id="member-view" class="hidden">
+                 <div class="flex justify-between items-center mb-8">
+                    <h2 class="text-3xl font-bold text-gray-800">Member Dashboard</h2>
+                    <button id="join-trip-btn" class="btn-primary py-2 px-4 rounded-md font-medium">Join a Trip</button>
+                </div>
+                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="member-trip-list">
+                      <!-- Member's trip cards will be dynamically inserted here -->
+                 </div>
+            </div>
+            
+            <!-- Members Management View (For Organizer) -->
+            <div id="members-view" class="hidden">
+                <div class="flex justify-between items-center mb-8">
+                    <h2 class="text-3xl font-bold text-gray-800">All Members</h2>
+                </div>
+                <div class="bg-white shadow rounded-lg overflow-hidden">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trips Joined</th>
+                            </tr>
+                        </thead>
+                        <tbody id="members-table-body" class="bg-white divide-y divide-gray-200">
+                            <!-- Member rows will be dynamically inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+
+            <!-- Trip Details View (Common for both) -->
+            <div id="trip-details-view" class="hidden">
+                <!-- Dynamic content will be injected here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="create-trip-modal" class="modal-backdrop hidden">
+        <div class="modal-content">
+            <h3 class="text-2xl font-bold mb-4">Create a New Trip</h3>
+            <form id="create-trip-form">
+                 <div class="mb-4">
+                    <label for="trip-name" class="block text-sm font-medium text-gray-700">Trip Name</label>
+                    <input type="text" id="trip-name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" required>
+                </div>
+                 <div class="mb-4">
+                    <label for="trip-currency" class="block text-sm font-medium text-gray-700">Currency</label>
+                    <select id="trip-currency" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        <option value="INR" selected>INR (₹)</option>
+                        <option value="USD">USD ($)</option>
+                        <option value="EUR">EUR (€)</option>
+                        <option value="GBP">GBP (£)</option>
+                    </select>
+                </div>
+                 <div class="mb-4">
+                    <label for="upi-id" class="block text-sm font-medium text-gray-700">Your UPI ID (for payments)</label>
+                    <input type="text" id="upi-id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="yourname@upi" required>
+                </div>
+                <div class="mb-4">
+                    <label for="destination" class="block text-sm font-medium text-gray-700">Destination</label>
+                    <input type="text" id="destination" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" required>
+                </div>
+                 <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="start-date" class="block text-sm font-medium text-gray-700">Start Date</label>
+                        <input type="date" id="start-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" required>
+                    </div>
+                    <div>
+                        <label for="end-date" class="block text-sm font-medium text-gray-700">End Date</label>
+                        <input type="date" id="end-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" required>
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-4">
+                    <button type="button" id="cancel-create-trip" class="py-2 px-4 rounded-md text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200">Cancel</button>
+                    <button type="submit" class="btn-primary py-2 px-4 rounded-md text-sm font-medium">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div id="join-trip-modal" class="modal-backdrop hidden">
+        <div class="modal-content">
+            <h3 class="text-2xl font-bold mb-4">Join a Trip</h3>
+            <form id="join-trip-form">
+                <div class="mb-4">
+                    <label for="member-name" class="block text-sm font-medium text-gray-700">Your Name</label>
+                    <input type="text" id="member-name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" placeholder="e.g. Jane Doe" required>
+                </div>
+                <div class="mb-4">
+                    <label for="trip-code" class="block text-sm font-medium text-gray-700">Enter Trip Code</label>
+                    <input type="text" id="trip-code" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" required>
+                </div>
+                <div class="flex justify-end space-x-4">
+                    <button type="button" id="cancel-join-trip" class="py-2 px-4 rounded-md text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200">Cancel</button>
+                    <button type="submit" class="btn-primary py-2 px-4 rounded-md text-sm font-medium">Join</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+     <div id="add-expense-modal" class="modal-backdrop hidden">
+        <div class="modal-content">
+            <h3 class="text-2xl font-bold mb-4">Add New Expense</h3>
+            <form id="add-expense-form">
+                <div class="mb-4">
+                    <label for="expense-description" class="block text-sm font-medium text-gray-700">Description</label>
+                    <input type="text" id="expense-description" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" required>
+                </div>
+                <div class="mb-4">
+                    <label for="expense-amount" class="block text-sm font-medium text-gray-700">Amount</label>
+                    <input type="number" id="expense-amount" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" required>
+                </div>
+                 <div class="mb-4">
+                    <label for="expense-category" class="block text-sm font-medium text-gray-700">Category</label>
+                    <select id="expense-category" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                        <option>Food</option>
+                        <option>Transport</option>
+                        <option>Accommodation</option>
+                        <option>Activity</option>
+                        <option>Other</option>
+                    </select>
+                </div>
+                <div class="flex justify-end space-x-4">
+                    <button type="button" id="cancel-add-expense" class="py-2 px-4 rounded-md text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200">Cancel</button>
+                    <button type="submit" class="btn-primary py-2 px-4 rounded-md text-sm font-medium">Add Expense</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div id="payment-qr-modal" class="modal-backdrop hidden">
+        <div class="modal-content text-center">
+            <h3 class="text-2xl font-bold mb-4">Scan to Pay</h3>
+            <img id="qr-code-img" src="" alt="QR Code" class="mx-auto w-64 h-64 mb-4 border rounded">
+            <p id="payment-details" class="text-gray-600"></p>
+            <button id="close-qr-modal" class="mt-6 py-2 px-4 rounded-md text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200">Close</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // State
+            let loggedInUser = null;
+            let currentTripId = null; // To track the currently open trip
+            let allMembers = new Map(); // Using a Map for easier member management {name -> {trips: [tripName]}}
+
+            let allTrips = [{
+                id: 1,
+                name: "Goa Adventure",
+                code: "XYZ123",
+                destination: "Goa, India",
+                startDate: "2024-12-10",
+                endDate: "2024-12-15",
+                currency: "INR",
+                organizer: "Organizer Name",
+                organizerUpi: "organizer@upi",
+                members: ["Organizer Name", "John Doe", "Jane Smith"],
+                expenses: [
+                    { id: 1, description: "Lunch at beach shack", amount: 1500, category: "Food", paidBy: "Organizer Name" },
+                    { id: 2, description: "Scooter Rental", amount: 800, category: "Transport", paidBy: "John Doe" }
+                ],
+                itinerary: [
+                    { day: 1, date: "2024-12-10", plan: "Arrive in Goa, check-in to hotel." },
+                    { day: 2, date: "2024-12-11", plan: "North Goa beach hopping." }
+                ]
+            }];
+
+            // Initialize members from existing trip data
+            allTrips.forEach(trip => {
+                trip.members.forEach(memberName => {
+                    if (!allMembers.has(memberName)) {
+                        allMembers.set(memberName, { trips: new Set() });
+                    }
+                    allMembers.get(memberName).trips.add(trip.name);
+                });
+            });
+
+
+            // DOM Elements
+            const loginView = document.getElementById('login-view');
+            const appContainer = document.getElementById('app-container');
+            const loginForm = document.getElementById('login-form');
+            const logoutBtn = document.getElementById('logout-btn');
+            const membersLink = document.getElementById('members-link');
+            const dashboardLink = document.getElementById('dashboard-link');
+
+            const organizerView = document.getElementById('organizer-view');
+            const memberView = document.getElementById('member-view');
+            const membersView = document.getElementById('members-view');
+            const tripDetailsView = document.getElementById('trip-details-view');
+            
+            const createTripBtn = document.getElementById('create-trip-btn');
+            const createTripModal = document.getElementById('create-trip-modal');
+            const cancelCreateTripBtn = document.getElementById('cancel-create-trip');
+            const createTripForm = document.getElementById('create-trip-form');
+            
+            const joinTripBtn = document.getElementById('join-trip-btn');
+            const joinTripModal = document.getElementById('join-trip-modal');
+            const cancelJoinTripBtn = document.getElementById('cancel-join-trip');
+            const joinTripForm = document.getElementById('join-trip-form');
+
+            const addExpenseModal = document.getElementById('add-expense-modal');
+            const cancelAddExpenseBtn = document.getElementById('cancel-add-expense');
+            const addExpenseForm = document.getElementById('add-expense-form');
+
+            const paymentQrModal = document.getElementById('payment-qr-modal');
+            const closeQrModalBtn = document.getElementById('close-qr-modal');
+            
+            // Functions
+            function getCurrencySymbol(currencyCode) {
+                const symbols = {
+                    'INR': '₹',
+                    'USD': '$',
+                    'EUR': '€',
+                    'GBP': '£'
+                };
+                return symbols[currencyCode] || '';
+            }
+
+            function switchView(view) {
+                organizerView.classList.add('hidden');
+                memberView.classList.add('hidden');
+                membersView.classList.add('hidden');
+                tripDetailsView.classList.add('hidden');
+
+                if (view === 'organizer') organizerView.classList.remove('hidden');
+                else if (view === 'member') memberView.classList.remove('hidden');
+                else if (view === 'members') membersView.classList.remove('hidden');
+                else if (view === 'trip-details') tripDetailsView.classList.remove('hidden');
+            }
+            
+            function renderOrganizerTrips() {
+                const tripList = document.getElementById('trip-list');
+                tripList.innerHTML = '';
+                const organizerCreatedTrips = allTrips.filter(trip => trip.organizer === loggedInUser.name);
+                organizerCreatedTrips.forEach(trip => {
+                    tripList.innerHTML += `
+                        <div class="card">
+                            <h3 class="text-xl font-semibold text-gray-800">${trip.name}</h3>
+                            <p class="text-gray-500 text-sm mb-4">Trip Code: <span class="font-mono bg-gray-100 p-1 rounded">${trip.code}</span></p>
+                            <p class="text-gray-600 mb-1"><strong>Destination:</strong> ${trip.destination}</p>
+                            <p class="text-gray-600 mb-4"><strong>Dates:</strong> ${trip.startDate} to ${trip.endDate}</p>
+                            <div class="flex justify-between items-center">
+                                <button class="text-sm text-indigo-600 hover:underline" onclick="openTripDetails(${trip.id})">Manage Trip</button>
+                                <span class="text-sm font-medium text-green-600">Active</span>
+                            </div>
+                        </div>`;
+                });
+                 if(organizerCreatedTrips.length === 0){
+                    tripList.innerHTML = `<p class="text-gray-500 col-span-full">You haven't created any trips yet.</p>`;
+                }
+            }
+
+            function renderMemberTrips() {
+                const memberTripList = document.getElementById('member-trip-list');
+                memberTripList.innerHTML = '';
+                const tripsForMember = allTrips.filter(trip => trip.members.includes(loggedInUser.name));
+                 tripsForMember.forEach(trip => {
+                    memberTripList.innerHTML += `
+                        <div class="card">
+                            <h3 class="text-xl font-semibold text-gray-800">${trip.name}</h3>
+                            <p class="text-gray-500 mb-4">Organized by: ${trip.organizer}</p>
+                             <p class="text-gray-600 mb-1"><strong>Destination:</strong> ${trip.destination}</p>
+                             <p class="text-gray-600 mb-4"><strong>Dates:</strong> ${trip.startDate} to ${trip.endDate}</p>
+                             <div class="flex justify-between items-center">
+                                <button class="text-sm text-indigo-600 hover:underline" onclick="openTripDetails(${trip.id})">View Details</button>
+                                <span class="text-sm font-medium text-green-600">Active</span>
+                            </div>
+                        </div>`;
+                });
+                if(tripsForMember.length === 0){
+                    memberTripList.innerHTML = `<p class="text-gray-500 col-span-full">You haven't joined any trips yet.</p>`;
+                }
+            }
+            
+            function renderMembersView() {
+                const membersTableBody = document.getElementById('members-table-body');
+                membersTableBody.innerHTML = '';
+                // Filter to show only members of trips created by the current organizer
+                const organizerTripNames = allTrips
+                    .filter(t => t.organizer === loggedInUser.name)
+                    .map(t => t.name);
+                
+                allMembers.forEach((data, name) => {
+                    const joinedOrganizerTrips = [...data.trips].filter(tripName => organizerTripNames.includes(tripName));
+                    if (name !== loggedInUser.name && joinedOrganizerTrips.length > 0) {
+                        membersTableBody.innerHTML += `
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${name}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${joinedOrganizerTrips.join(', ')}</td>
+                            </tr>
+                        `;
+                    }
+                });
+                 if (membersTableBody.innerHTML === '') {
+                    membersTableBody.innerHTML = `<tr><td colspan="2" class="px-6 py-4 text-center text-gray-500">No members have joined your trips yet.</td></tr>`;
+                }
+            }
+
+
+            window.openTripDetails = (tripId) => {
+                currentTripId = tripId; // Set the current trip ID
+                const role = loggedInUser.role;
+                const tripData = allTrips.find(t => t.id === tripId);
+                if (!tripData) return;
+                
+                const currencySymbol = getCurrencySymbol(tripData.currency);
+                let totalExpenses = tripData.expenses.reduce((sum, ex) => sum + ex.amount, 0);
+                
+                let balances = {};
+                tripData.members.forEach(member => balances[member] = 0);
+
+                tripData.expenses.forEach(expense => {
+                    balances[expense.paidBy] += expense.amount;
+                    let share = expense.amount / tripData.members.length;
+                    tripData.members.forEach(member => {
+                        balances[member] -= share;
+                    });
+                });
+                
+                const tripDetailsHTML = `
+                <div>
+                    <button class="mb-4 text-sm text-indigo-600 hover:underline" onclick="closeTripDetails()">← Back to Dashboard</button>
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h2 class="text-3xl font-bold text-gray-800">${tripData.name}</h2>
+                            <p class="text-gray-500">Trip Code: ${tripData.code}</p>
+                        </div>
+                        ${role === 'organizer' ? `<button class="py-2 px-4 rounded-md font-medium bg-gray-200 text-gray-800">${tripData.members.length} Members</button>` : ''}
+                    </div>
+
+                    <div class="border-b border-gray-200 mb-6">
+                        <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                            <a href="#" class="tab-link active-tab border-indigo-500 text-indigo-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm" data-tab="expenses">Expenses</a>
+                            <a href="#" class="tab-link border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm" data-tab="itinerary">Itinerary</a>
+                            <a href="#" class="tab-link border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm" data-tab="settlements">Settlements</a>
+                             <a href="#" class="tab-link border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm" data-tab="history">History</a>
+                        </nav>
+                    </div>
+
+                    <div id="expenses-tab" class="tab-content">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-semibold">Expenses (${currencySymbol}${totalExpenses.toFixed(2)})</h3>
+                            <button id="add-expense-btn-details" class="btn-primary py-2 px-4 rounded-md font-medium text-sm">Add Expense</button>
+                        </div>
+                         <div class="bg-white shadow rounded-lg overflow-hidden">
+                            <ul class="divide-y divide-gray-200">${tripData.expenses.map(ex => `
+                                    <li class="p-4 flex justify-between items-center"><div><p class="font-medium text-gray-800">${ex.description}</p><p class="text-sm text-gray-500">${ex.category} - Paid by ${ex.paidBy}</p></div><p class="font-semibold text-gray-800">${currencySymbol}${ex.amount.toFixed(2)}</p></li>`).join('') || `<li class="p-4 text-center text-gray-500">No expenses added yet.</li>`}</ul>
+                        </div>
+                        <button id="export-excel-btn" class="mt-4 btn-primary py-2 px-4 rounded-md font-medium text-sm">Export to Excel</button>
+                    </div>
+                    
+                    <div id="itinerary-tab" class="tab-content hidden"><div class="flex justify-between items-center mb-4"><h3 class="text-xl font-semibold">Itinerary</h3>${role === 'organizer' ? '<button class="btn-primary py-2 px-4 rounded-md font-medium text-sm">Add Itinerary</button>' : ''}</div><div class="space-y-4">${tripData.itinerary.map(item => `<div class="card"><p class="font-semibold">${item.date} (Day ${item.day})</p><p class="text-gray-600">${item.plan}</p></div>`).join('') || `<div class="card text-center text-gray-500">No itinerary planned yet.</div>`}</div></div>
+
+                    <div id="settlements-tab" class="tab-content hidden"><h3 class="text-xl font-semibold mb-4">Who Owes Who</h3><div class="bg-white shadow rounded-lg p-4">${Object.entries(balances).map(([member, balance]) => `<div class="flex justify-between items-center py-2 border-b last:border-b-0"><div><span class="font-medium">${member} ${member === loggedInUser.name ? '(You)' : ''}</span><span class="${balance >= 0 ? 'text-green-600' : 'text-red-600'} text-sm block">${balance >= 0 ? `Gets back ${currencySymbol}${balance.toFixed(2)}` : `Owes ${currencySymbol}${Math.abs(balance).toFixed(2)}`}</span></div>${balance < 0 && member === loggedInUser.name ? `<button class="text-sm btn-primary py-1 px-3 rounded" onclick="showQrPayment(${Math.abs(balance)}, '${tripData.organizer}', '${tripData.organizerUpi}', '${tripData.currency}')">Pay with QR</button>` : ''}</div>`).join('')}</div></div>
+                    
+                    <div id="history-tab" class="tab-content hidden"><h3 class="text-xl font-semibold mb-4">Trip History</h3><div class="bg-white shadow rounded-lg p-4"><p>Trip created by ${tripData.organizer} on ${new Date(tripData.startDate).toLocaleDateString()}.</p><p>${tripData.members.length} members joined.</p><p>${tripData.expenses.length} expenses recorded.</p></div></div>
+                </div>`;
+                tripDetailsView.innerHTML = tripDetailsHTML;
+                switchView('trip-details');
+
+                document.querySelectorAll('.tab-link').forEach(link => link.addEventListener('click', e => { e.preventDefault(); document.querySelectorAll('.tab-link').forEach(l => { l.classList.remove('active-tab', 'border-indigo-500', 'text-indigo-600'); l.classList.add('border-transparent', 'text-gray-500'); }); document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden')); link.classList.add('active-tab', 'border-indigo-500', 'text-indigo-600'); link.classList.remove('border-transparent', 'text-gray-500'); document.getElementById(`${link.dataset.tab}-tab`).classList.remove('hidden'); }));
+                document.getElementById('add-expense-btn-details').addEventListener('click', () => addExpenseModal.classList.remove('hidden'));
+                document.getElementById('export-excel-btn').addEventListener('click', () => exportToExcel(tripData));
+            };
+
+            window.showQrPayment = (amount, payeeName, payeeUpi, currencyCode) => {
+                const amountFloat = parseFloat(amount).toFixed(2);
+                const upiUrl = `upi://pay?pa=${payeeUpi}&pn=${encodeURIComponent(payeeName)}&am=${amountFloat}&cu=${currencyCode}&tn=Trip%20Payment`;
+                const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(upiUrl)}`;
+                document.getElementById('qr-code-img').src = qrApiUrl;
+                document.getElementById('payment-details').innerText = `You are paying ${getCurrencySymbol(currencyCode)}${amountFloat} to ${payeeName} (${payeeUpi})`;
+                paymentQrModal.classList.remove('hidden');
+            };
+            
+            function exportToExcel(tripData) {
+                const ws = XLSX.utils.json_to_sheet(tripData.expenses.map(ex => ({ Description: ex.description, Category: ex.category, Amount: ex.amount, 'Paid By': ex.paidBy })));
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Expenses");
+                XLSX.writeFile(wb, `${tripData.name}_Expenses.xlsx`);
+            }
+
+            window.closeTripDetails = () => switchView(loggedInUser.role);
+
+            // Event Listeners
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const role = document.getElementById('role-select').value;
+                loggedInUser = {
+                    role: role,
+                    name: role === 'organizer' ? 'Organizer Name' : 'Member Name' // simplified
+                };
+
+                if (role === 'organizer') {
+                    membersLink.classList.remove('hidden');
+                    renderOrganizerTrips();
+                } else {
+                    membersLink.classList.add('hidden');
+                    renderMemberTrips();
+                }
+
+                loginView.classList.add('hidden');
+                appContainer.classList.remove('hidden');
+                switchView(role);
+            });
+
+            logoutBtn.addEventListener('click', () => {
+                loggedInUser = null;
+                appContainer.classList.add('hidden');
+                loginView.classList.remove('hidden');
+            });
+            
+            dashboardLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                switchView(loggedInUser.role);
+            });
+            
+            membersLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                if(loggedInUser && loggedInUser.role === 'organizer') {
+                    renderMembersView();
+                    switchView('members');
+                }
+            });
+
+            createTripBtn.addEventListener('click', () => createTripModal.classList.remove('hidden'));
+            cancelCreateTripBtn.addEventListener('click', () => createTripModal.classList.add('hidden'));
+            joinTripBtn.addEventListener('click', () => joinTripModal.classList.remove('hidden'));
+            cancelJoinTripBtn.addEventListener('click', () => joinTripModal.classList.add('hidden'));
+            cancelAddExpenseBtn.addEventListener('click', () => addExpenseModal.classList.add('hidden'));
+            closeQrModalBtn.addEventListener('click', () => paymentQrModal.classList.add('hidden'));
+
+            createTripForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const newTrip = {
+                    id: Date.now(),
+                    name: document.getElementById('trip-name').value,
+                    code: Math.random().toString(36).substring(2, 8).toUpperCase(),
+                    destination: document.getElementById('destination').value,
+                    startDate: document.getElementById('start-date').value,
+                    endDate: document.getElementById('end-date').value,
+                    currency: document.getElementById('trip-currency').value,
+                    organizer: loggedInUser.name,
+                    organizerUpi: document.getElementById('upi-id').value,
+                    members: [loggedInUser.name],
+                    expenses: [],
+                    itinerary: []
+                };
+                allTrips.push(newTrip);
+                renderOrganizerTrips();
+                createTripModal.classList.add('hidden');
+                this.reset();
+            });
+
+            joinTripForm.addEventListener('submit', function(e){
+                e.preventDefault();
+                const code = document.getElementById('trip-code').value.toUpperCase();
+                const newMemberName = document.getElementById('member-name').value;
+                const tripToJoin = allTrips.find(t => t.code === code);
+                
+                loggedInUser.name = newMemberName; // Update logged in user's name
+
+                if (tripToJoin) {
+                    if (!tripToJoin.members.includes(newMemberName)) {
+                        tripToJoin.members.push(newMemberName);
+                        
+                        if (!allMembers.has(newMemberName)) {
+                            allMembers.set(newMemberName, { trips: new Set() });
+                        }
+                        allMembers.get(newMemberName).trips.add(tripToJoin.name);
+
+                        renderMemberTrips();
+                        alert(`Successfully joined the trip: ${tripToJoin.name}`);
+                    } else {
+                        alert('You are already a member of this trip.');
+                    }
+                } else {
+                    alert('Invalid trip code. Please try again.');
+                }
+
+                joinTripModal.classList.add('hidden');
+                this.reset();
+            });
+
+             addExpenseForm.addEventListener('submit', function(e){
+                e.preventDefault();
+                if (!currentTripId) return;
+
+                const trip = allTrips.find(t => t.id === currentTripId);
+                if (!trip) return;
+
+                const description = document.getElementById('expense-description').value;
+                const amount = parseFloat(document.getElementById('expense-amount').value);
+                const category = document.getElementById('expense-category').value;
+
+                if (description && !isNaN(amount) && amount > 0) {
+                    const newExpense = {
+                        id: Date.now(),
+                        description: description,
+                        amount: amount,
+                        category: category,
+                        paidBy: loggedInUser.name
+                    };
+                    trip.expenses.push(newExpense);
+
+                    addExpenseModal.classList.add('hidden');
+                    this.reset();
+
+                    // Re-render the trip details to show the new expense
+                    openTripDetails(currentTripId);
+                } else {
+                    alert('Please enter a valid description and amount.');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+
